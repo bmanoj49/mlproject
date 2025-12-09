@@ -5,6 +5,7 @@ import pandas as pd
 from src.exception import CustomException
 import dill
 from sklearn.metrics import r2_score
+from sklearn.model_selection import GridSearchCV
 
 
 def save_object(file_path,obj):
@@ -18,22 +19,34 @@ def save_object(file_path,obj):
     except Exception as e:
         raise CustomException(e,sys)
 
-def evaluate_models(X_train,y_train,X_test,y_test,models):
+def evaluate_models(X_train, y_train, X_test, y_test, models, param):
     try:
-        
-        report={}
+        report = {}
+        best_model_name = None
+        best_model_score = -np.inf
+        best_model_obj = None
 
-        for i in range(len(list(models))):
-            model = list(models.values())[i]
-            model.fit(X_train,y_train)  ## Train model
-            y_train_pred=model.predict(X_train)
-            y_test_pred=model.predict(X_test)
+        for model_name in models:
+            model = models[model_name]
+            para = param[model_name]
 
-            train_model_score=r2_score(y_train,y_train_pred)
-            test_model_score=r2_score(y_test,y_test_pred)
+            gs = GridSearchCV(model, para, cv=3)
+            gs.fit(X_train, y_train)
 
-            report[list(models.keys())[i]]=test_model_score
-        return report
+            model.set_params(**gs.best_params_)
+            model.fit(X_train, y_train)
+
+            y_pred = model.predict(X_test)
+            score = r2_score(y_test, y_pred)
+
+            report[model_name] = score
+
+            if score > best_model_score:
+                best_model_score = score
+                best_model_name = model_name
+                best_model_obj = model   # already fitted model
+
+        return report, best_model_name, best_model_obj
+
     except Exception as e:
-        raise CustomException(e,sys)
-    
+        raise CustomException(e, sys)
